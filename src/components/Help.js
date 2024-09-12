@@ -1,4 +1,3 @@
-// components/Help.js
 import styles from '../styles/Home.module.css';
 
 const Help = ({ onHelp }) => {

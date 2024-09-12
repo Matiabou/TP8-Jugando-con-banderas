@@ -1,5 +1,4 @@
-// components/Game.js
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import Timer from './Timer';
 import Help from './Help';
 import Form from './Form';
@@ -12,16 +11,8 @@ const Game = () => {
   const [playerName, setPlayerName] = useState('');
   const [isTimerActive, setIsTimerActive] = useState(false);
   const [timer, setTimer] = useState(15);
-  const [help, setHelp] = useState('');
-
-  // Ref to keep track of the remaining time
-  const timerRef = useRef(timer);
-
-  // Update the timerRef when timer state changes
-  useEffect(() => {
-    timerRef.current = timer;
-  }, [timer]);
-
+  const [revealedLetters, setRevealedLetters] = useState('');
+  
   useEffect(() => {
     const fetchCountries = async () => {
       const res = await fetch('https://countriesnow.space/api/v0.1/countries/flag/images');
@@ -32,16 +23,41 @@ const Game = () => {
   }, []);
 
   useEffect(() => {
-    if (countries.length) {
+    if (countries.length && playerName) { // Solo se inicia cuando el jugador ingresa el nombre
       pickRandomCountry();
     }
-  }, [countries]);
+  }, [countries, playerName]);
+
+  useEffect(() => {
+    let interval;
+    if (isTimerActive && timer > 0) {
+      interval = setInterval(() => {
+        setTimer((prevTimer) => prevTimer - 1);
+      }, 1000);
+    } else if (timer === 0) {
+      handleTimeUp();
+    }
+
+    return () => clearInterval(interval);
+  }, [isTimerActive, timer]);
 
   const pickRandomCountry = () => {
     const randomIndex = Math.floor(Math.random() * countries.length);
-    setCurrentCountry(countries[randomIndex]);
-    setIsTimerActive(true);
-    setTimer(15); // Reset timer for each new question
+    const selectedCountry = countries[randomIndex];
+    setCurrentCountry(selectedCountry);
+
+    // Crear los guiones pero respetando los espacios en el nombre del país
+    const formattedName = selectedCountry.name.replace(/[A-Za-z]/g, '-');
+    setRevealedLetters(formattedName);
+
+    // Resetear el temporizador
+    setIsTimerActive(false);
+    setTimer(15);
+
+    // Activar el temporizador una vez que todo esté listo
+    setTimeout(() => {
+      setIsTimerActive(true);
+    }, 100);
   };
 
   const handleAnswer = (answer) => {
@@ -49,21 +65,36 @@ const Game = () => {
     const normalizedCountryName = currentCountry.name.trim().toLowerCase();
 
     if (normalizedAnswer === normalizedCountryName) {
-      // Use the current timer value from timerRef
-      setScore(prevScore => prevScore + timerRef.current); 
+      setScore(prevScore => prevScore + timer); // Sumar puntos en base al tiempo restante
     } else {
-      setScore(prevScore => prevScore - 5); // Deduct 5 points on incorrect answer
+      setScore(prevScore => prevScore - 5); // Restar puntos por respuesta incorrecta
     }
-    pickRandomCountry();
+
+    pickRandomCountry(); // Elegir un nuevo país y reiniciar el temporizador
   };
 
   const handleHelp = () => {
-    setHelp(currentCountry.name.slice(0, 1)); // Example
-    setTimer(prevTimer => {
-      const newTimer = Math.max(prevTimer - 2, 0); // Ensure it doesn't go below 0
-      timerRef.current = newTimer; // Update the ref
-      return newTimer;
-    });
+    const countryName = currentCountry.name;
+
+    // Obtener los índices de los guiones que aún no han sido reemplazados (ignorar los espacios)
+    const unrevealedIndices = revealedLetters
+      .split('')
+      .map((char, index) => (char === '-' ? index : null))
+      .filter((index) => index !== null);
+
+    // Seleccionar un índice aleatorio de los guiones restantes
+    if (unrevealedIndices.length > 0) {
+      const randomIndex = Math.floor(Math.random() * unrevealedIndices.length);
+      const letterIndex = unrevealedIndices[randomIndex];
+
+      // Reemplazar el guion en esa posición con la letra correspondiente
+      const newRevealedLetters = revealedLetters.split('');
+      newRevealedLetters[letterIndex] = countryName[letterIndex];
+      setRevealedLetters(newRevealedLetters.join(''));
+
+      // Restar 2 segundos por cada letra revelada
+      setTimer(prevTimer => Math.max(prevTimer - 2, 0));
+    }
   };
 
   const handleNameSubmit = (name) => {
@@ -75,8 +106,8 @@ const Game = () => {
 
   const handleTimeUp = () => {
     setIsTimerActive(false);
-    setScore(prevScore => prevScore - 5); // Deduct 5 points if time runs out
-    pickRandomCountry();
+    setScore(prevScore => prevScore - 5); // Restar puntos si se acaba el tiempo
+    pickRandomCountry(); // Elegir un nuevo país
   };
 
   return (
@@ -86,11 +117,8 @@ const Game = () => {
         <>
           <img src={currentCountry?.flag} alt={currentCountry?.name} className={styles.flagImage} />
           <p>Score: {score}</p>
-          <Timer
-            isActive={isTimerActive}
-            timer={timer}
-            onTimeUp={handleTimeUp}
-          />
+          <p>Country: {revealedLetters}</p> {/* Mostrar las letras reveladas */}
+          <Timer timer={timer} />
           <Help onHelp={handleHelp} />
           <Form onSubmit={handleAnswer} placeholder="Type your answer" />
         </>

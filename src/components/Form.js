@@ -1,4 +1,3 @@
-// components/Form.js
 import { useState } from 'react';
 import styles from '../styles/Home.module.css';
 
@@ -7,7 +6,7 @@ const Form = ({ onSubmit, placeholder }) => {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (inputValue.trim()) { // Ensure input is not empty
+    if (inputValue.trim()) { 
       onSubmit(inputValue);
       setInputValue('');
     }
